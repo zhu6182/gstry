@@ -1,0 +1,5 @@
+{
+  "name": "PartnerNexus",
+  "description": "An internal B2B partner order dispatch and grab platform with dynamic commission management and role-based access control.",
+  "requestFramePermissions": []
+}
