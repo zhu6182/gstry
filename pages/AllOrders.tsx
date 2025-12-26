@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { mockService } from '../services/mockService';
 import { Order, OrderStatus, User, UserRole } from '../types';
-import { Search, Filter, MoreHorizontal, AlertTriangle, CheckCircle, X, RotateCcw, Gavel, Eye, FileText, User as UserIcon, Phone, MapPin, Image as ImageIcon, MessageSquare, Scale, HelpCircle } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, AlertTriangle, CheckCircle, X, RotateCcw, Gavel, Eye, FileText, User as UserIcon, Phone, MapPin, Image as ImageIcon, MessageSquare, Scale, HelpCircle, Calendar, RefreshCw } from 'lucide-react';
 
 const statusMap: Record<OrderStatus, string> = {
   [OrderStatus.PUBLISHED]: '已发布',
@@ -30,6 +31,8 @@ interface AllOrdersProps {
 export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [orders, setOrders] = useState(mockService.getOrders());
   
   // Modal State
@@ -40,8 +43,9 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.OPERATIONS;
+  const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.OPERATIONS || user.role === UserRole.DISPATCHER;
   const isOperations = user.role === UserRole.OPERATIONS;
+  const isDispatcher = user.role === UserRole.DISPATCHER;
   const managedCities = user.managedCityCodes || [];
 
   useEffect(() => {
@@ -59,6 +63,16 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
   };
 
   const handleStatusUpdate = (orderId: string, status: OrderStatus) => {
+    // Dispatchers cannot update status unless they own the order (which is handled in MyOrders), 
+    // here is global view, so let's restrict or allow based on role.
+    // For now, let's say Dispatchers are view-only in "All Orders" to avoid confusion, 
+    // or they can manage if they are the publisher (but logic is complex here).
+    // Let's restrict global actions to Admin/Ops.
+    if (isDispatcher) {
+        alert('发单员请在“我的发布”中管理订单。');
+        return;
+    }
+
     const success = mockService.updateOrderStatus(orderId, status, user.id);
     if (success) {
       setActiveMenuId(null);
@@ -71,6 +85,8 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
 
   const executeRuling = () => {
     if (!selectedOrder || !showRulingConfirm) return;
+    
+    if (isDispatcher) return; // Dispatchers don't rule.
 
     let success = false;
     if (showRulingConfirm === 'SETTLE') {
@@ -95,32 +111,79 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
                           o.publishPartnerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || o.status === statusFilter;
     
+    // Date Range Matching
+    let matchesDate = true;
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      matchesDate = matchesDate && new Date(o.createdAt) >= start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && new Date(o.createdAt) <= end;
+    }
+
     // Permission Scope Filter
     let matchesScope = true;
     if (isOperations && managedCities.length > 0) {
         matchesScope = managedCities.includes(o.cityCode);
     }
+    // Dispatcher sees all orders (Market view) or maybe just their own?
+    // Requirement says "can see order relevant data". Usually implies global view or scope.
+    // Let's assume Global Read Access for Dispatcher to monitor market.
 
-    return matchesSearch && matchesStatus && matchesScope;
+    return matchesSearch && matchesStatus && matchesScope && matchesDate;
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">全部订单管理</h1>
           <p className="text-slate-500 text-sm">
              {isOperations 
                ? `查看您负责区域的订单 (${managedCities.map(c => mockService.getCityName(c)).join(', ') || '全部'})`
-               : '查看平台所有订单流转状态，处理异常与纠纷裁决'}
+               : isDispatcher 
+                  ? '查看平台所有订单流转状态' 
+                  : '查看平台所有订单流转状态，处理异常与纠纷裁决'}
           </p>
         </div>
         
-        <div className="flex gap-2 w-full md:w-auto">
-          <div className="relative">
+        <div className="flex flex-wrap gap-2 w-full xl:w-auto items-center">
+          {/* Date Range Picker */}
+          <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300 shadow-sm h-[42px]">
+              <div className="pl-2 text-slate-400"><Calendar className="w-4 h-4" /></div>
+              <input 
+                type="date"
+                className="text-xs border-none outline-none text-slate-600 bg-transparent py-1 w-28 cursor-pointer"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                title="开始日期"
+              />
+              <span className="text-slate-300">-</span>
+              <input 
+                type="date"
+                className="text-xs border-none outline-none text-slate-600 bg-transparent py-1 w-28 cursor-pointer"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                title="结束日期"
+              />
+              {(startDate || endDate) && (
+                  <button 
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                    title="重置日期"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+              )}
+          </div>
+
+          <div className="relative h-[42px]">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <select 
-              className="pl-10 pr-8 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
+              className="h-full pl-10 pr-8 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white text-sm min-w-[140px]"
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
             >
@@ -130,12 +193,12 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
               ))}
             </select>
           </div>
-          <div className="relative flex-1 md:w-64">
+          <div className="relative flex-1 xl:w-64 h-[42px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
               placeholder="搜索订单号/标题/合伙人..." 
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
+              className="w-full h-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -205,7 +268,7 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
                       onClick={() => setSelectedOrder(order)}
                       className="text-blue-600 hover:text-blue-800 font-medium text-xs border border-blue-200 bg-blue-50 px-3 py-1.5 rounded-md hover:bg-blue-100 transition-colors"
                     >
-                      {order.status === OrderStatus.MEDIATING ? '裁决' : '查看'}
+                      {order.status === OrderStatus.MEDIATING && !isDispatcher ? '裁决' : '查看'}
                     </button>
                   </td>
                 </tr>
@@ -388,7 +451,7 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
                </div>
                
                <div className="flex gap-3">
-                  {selectedOrder.status === OrderStatus.MEDIATING && (
+                  {selectedOrder.status === OrderStatus.MEDIATING && !isDispatcher && (
                     <>
                       <button 
                         onClick={() => setShowRulingConfirm('SETTLE')}
@@ -405,7 +468,7 @@ export const AllOrders: React.FC<AllOrdersProps> = ({ user }) => {
                     </>
                   )}
                   
-                  {(selectedOrder.status === OrderStatus.PROCESSING || selectedOrder.status === OrderStatus.EXCEPTION) && (
+                  {(selectedOrder.status === OrderStatus.PROCESSING || selectedOrder.status === OrderStatus.EXCEPTION) && !isDispatcher && (
                      <div className="flex gap-2">
                         <button 
                           onClick={() => handleStatusUpdate(selectedOrder.id, OrderStatus.COMPLETED)}

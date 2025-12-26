@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { mockService } from '../services/mockService';
 import { User, UserRole } from '../types';
-import { Search, Plus, Trash2, Shield, User as UserIcon, Settings as SettingsIcon, AlertTriangle, X, RotateCcw, CheckSquare, Square } from 'lucide-react';
+import { Search, Plus, Trash2, Shield, User as UserIcon, Settings as SettingsIcon, AlertTriangle, X, RotateCcw, CheckSquare, Square, Send } from 'lucide-react';
 
 export const InternalUserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>(mockService.getInternalUsers());
@@ -96,7 +96,7 @@ export const InternalUserManagement: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">内部人员管理</h1>
-          <p className="text-slate-500 text-sm">管理平台管理员、运营及财务人员账号权限</p>
+          <p className="text-slate-500 text-sm">管理平台管理员、运营、财务及发单人员账号</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
@@ -133,13 +133,18 @@ export const InternalUserManagement: React.FC = () => {
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     user.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-800' :
-                    user.role === UserRole.FINANCE ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                    user.role === UserRole.FINANCE ? 'bg-green-100 text-green-800' :
+                    user.role === UserRole.DISPATCHER ? 'bg-orange-100 text-orange-800' : 
+                    'bg-blue-100 text-blue-800'
                   }`}>
                     {user.role === UserRole.ADMIN && <Shield className="w-3 h-3" />}
                     {user.role === UserRole.FINANCE && <span className="font-serif">¥</span>}
                     {user.role === UserRole.OPERATIONS && <UserIcon className="w-3 h-3" />}
+                    {user.role === UserRole.DISPATCHER && <Send className="w-3 h-3" />}
+                    
                     {user.role === UserRole.ADMIN ? '超级管理员' : 
-                     user.role === UserRole.FINANCE ? '财务' : '运营人员'}
+                     user.role === UserRole.FINANCE ? '财务' : 
+                     user.role === UserRole.DISPATCHER ? '发单员' : '运营人员'}
                   </span>
                 </td>
                 <td className="px-6 py-4">
@@ -168,6 +173,8 @@ export const InternalUserManagement: React.FC = () => {
                          )}
                       </div>
                     </div>
+                  ) : user.role === UserRole.DISPATCHER ? (
+                      <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">平台发单权限</span>
                   ) : (
                     <span className="text-slate-400 text-xs">全局权限</span>
                   )}
@@ -213,7 +220,7 @@ export const InternalUserManagement: React.FC = () => {
       {/* Add User Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-200">
             <h3 className="text-xl font-bold text-slate-800 mb-6">添加内部人员</h3>
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
@@ -223,7 +230,7 @@ export const InternalUserManagement: React.FC = () => {
                   className="w-full border border-slate-300 rounded-lg px-3 py-2"
                   value={newUser.username}
                   onChange={e => setNewUser({...newUser, username: e.target.value})}
-                  placeholder="例如：ops_wang"
+                  placeholder="例如：dispatch_001"
                 />
               </div>
               <div>
@@ -233,41 +240,63 @@ export const InternalUserManagement: React.FC = () => {
                   className="w-full border border-slate-300 rounded-lg px-3 py-2"
                   value={newUser.realName}
                   onChange={e => setNewUser({...newUser, realName: e.target.value})}
-                  placeholder="例如：王小明"
+                  placeholder="例如：张发单"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">角色权限</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <label className="block text-sm font-medium text-slate-700 mb-2">角色权限</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg hover:bg-slate-50 transition-colors">
                     <input 
                       type="radio" 
                       name="role" 
                       checked={newUser.role === UserRole.OPERATIONS}
                       onChange={() => setNewUser({...newUser, role: UserRole.OPERATIONS})}
-                      className="text-blue-600"
+                      className="text-blue-600 w-4 h-4"
                     />
-                    <span className="text-sm">运营人员</span>
+                    <div>
+                        <span className="block text-sm font-bold text-slate-800">运营人员</span>
+                        <span className="block text-xs text-slate-500">管理合伙人/查看订单</span>
+                    </div>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input 
+                      type="radio" 
+                      name="role" 
+                      checked={newUser.role === UserRole.DISPATCHER}
+                      onChange={() => setNewUser({...newUser, role: UserRole.DISPATCHER})}
+                      className="text-blue-600 w-4 h-4"
+                    />
+                    <div>
+                        <span className="block text-sm font-bold text-slate-800">发单专员</span>
+                        <span className="block text-xs text-slate-500">仅用于发布/管理订单</span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg hover:bg-slate-50 transition-colors">
                     <input 
                       type="radio" 
                       name="role" 
                       checked={newUser.role === UserRole.FINANCE}
                       onChange={() => setNewUser({...newUser, role: UserRole.FINANCE})}
-                      className="text-blue-600"
+                      className="text-blue-600 w-4 h-4"
                     />
-                    <span className="text-sm">财务人员</span>
+                     <div>
+                        <span className="block text-sm font-bold text-slate-800">财务人员</span>
+                        <span className="block text-xs text-slate-500">资金审核/打款</span>
+                    </div>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg hover:bg-slate-50 transition-colors">
                     <input 
                       type="radio" 
                       name="role" 
                       checked={newUser.role === UserRole.ADMIN}
                       onChange={() => setNewUser({...newUser, role: UserRole.ADMIN})}
-                      className="text-blue-600"
+                      className="text-blue-600 w-4 h-4"
                     />
-                    <span className="text-sm">管理员</span>
+                    <div>
+                        <span className="block text-sm font-bold text-slate-800">管理员</span>
+                        <span className="block text-xs text-slate-500">系统最高权限</span>
+                    </div>
                   </label>
                 </div>
               </div>

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { User, UserRole } from './types';
+
+import React, { useState, useEffect } from 'react';
+import { User, UserRole, SystemConfig } from './types';
 import { mockService } from './services/mockService';
 import { Login } from './pages/Login';
 import { Layout } from './components/Layout';
@@ -20,6 +21,7 @@ import { InternalUserManagement } from './pages/InternalUserManagement';
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(mockService.getSystemConfig());
 
   const handleLogin = (user: User) => {
     setUser(user);
@@ -30,10 +32,15 @@ export default function App() {
     setUser(null);
   };
 
+  const updateConfig = (newConfig: SystemConfig) => {
+    mockService.updateSystemConfig(newConfig);
+    setSystemConfig(newConfig);
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard user={user!} />;
+        return <Dashboard user={user!} onNavigate={setCurrentView} />;
       case 'partners':
         return <PartnerManagement user={user!} />;
       case 'order-hall':
@@ -53,11 +60,11 @@ export default function App() {
       case 'finance':
         return <Finance user={user!} />;
       case 'reports':
-        return <Reports />;
+        return <Reports user={user!} />;
       case 'rules':
         return <CommissionRules />;
       case 'settings':
-        return <Settings user={user!} />;
+        return <Settings user={user!} systemConfig={systemConfig} onUpdateConfig={updateConfig} onLogout={handleLogout} />;
       case 'logs':
         return <SystemLogs />;
       case 'notifications':
@@ -65,12 +72,12 @@ export default function App() {
       case 'internal-users':
         return <InternalUserManagement />;
       default:
-        return <Dashboard user={user!} />;
+        return <Dashboard user={user!} onNavigate={setCurrentView} />;
     }
   };
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} systemConfig={systemConfig} />;
   }
 
   return (
@@ -79,6 +86,7 @@ export default function App() {
       onLogout={handleLogout} 
       currentView={currentView}
       onChangeView={setCurrentView}
+      systemConfig={systemConfig}
     >
       {renderContent()}
     </Layout>

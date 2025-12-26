@@ -1,13 +1,15 @@
+
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, SystemConfig } from '../types';
 import { mockService } from '../services/mockService';
 import { ShieldCheck, User as UserIcon, Lock, ArrowRight, Building, Wallet, Layout } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: User) => void;
+  systemConfig: SystemConfig;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -57,11 +59,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         {/* Left Side: Login Form */}
         <div className="flex-1 p-8 md:p-12 flex flex-col justify-center">
           <div className="mb-10">
-            <div className="flex items-center gap-2 mb-2">
-               <ShieldCheck className="w-8 h-8 text-blue-600" />
-               <span className="text-2xl font-bold text-slate-900 tracking-tight">PartnerNexus</span>
+            <div className="flex items-center gap-3 mb-2">
+               {systemConfig.logoUrl ? (
+                 <img src={systemConfig.logoUrl} alt="Logo" className="w-10 h-10 object-contain rounded" />
+               ) : (
+                 <ShieldCheck className="w-8 h-8 text-blue-600" />
+               )}
+               <span className="text-2xl font-bold text-slate-900 tracking-tight">{systemConfig.systemName}</span>
             </div>
-            <p className="text-slate-500">内部合伙人订单流转与结算系统</p>
+            <p className="text-slate-500">{systemConfig.loginSubtitle}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -115,7 +121,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
 
           <div className="mt-auto pt-8 text-center text-xs text-slate-400">
-             &copy; 2023 PartnerNexus Internal System v1.0.5
+             {systemConfig.copyright}
           </div>
         </div>
 

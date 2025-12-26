@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { mockService } from '../services/mockService';
 import { CommissionRule } from '../types';
@@ -13,11 +14,13 @@ export const CommissionRules: React.FC = () => {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const cities = mockService.getCities();
-  const orderTypes = mockService.getOrderTypes();
+  const orderTypes = mockService.getOrderTypes().filter(t => t.isActive);
+  const publishTitles = mockService.getPublishTitles().filter(t => t.isActive); // Professional Skills
 
   const [formData, setFormData] = useState({
     cityCode: 'ALL',
     orderType: 'ALL',
+    category: 'ALL',
     ruleType: 'PERCENTAGE',
     ruleValue: 10,
   });
@@ -29,6 +32,7 @@ export const CommissionRules: React.FC = () => {
     setFormData({
       cityCode: 'ALL',
       orderType: 'ALL',
+      category: 'ALL',
       ruleType: 'PERCENTAGE',
       ruleValue: 10,
     });
@@ -40,6 +44,7 @@ export const CommissionRules: React.FC = () => {
     setFormData({
       cityCode: rule.cityCode,
       orderType: rule.orderType,
+      category: rule.category || 'ALL', // Handle legacy data
       // @ts-ignore
       ruleType: rule.ruleType,
       ruleValue: rule.ruleValue,
@@ -82,7 +87,7 @@ export const CommissionRules: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">抽成规则配置</h1>
-          <p className="text-slate-500 text-sm">设置平台在不同场景下的自动抽成策略</p>
+          <p className="text-slate-500 text-sm">设置平台在不同业务场景与技能领域下的自动抽成策略</p>
         </div>
         <button 
           onClick={openAddModal}
@@ -96,8 +101,14 @@ export const CommissionRules: React.FC = () => {
       <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-start gap-3 text-sm text-blue-800">
         <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
         <div>
-          <p className="font-bold">规则匹配说明：</p>
-          <p>系统将自动计算最匹配的规则。优先匹配 <strong>特定城市 + 特定类型</strong> 的规则，其次是 <strong>特定城市</strong> 或 <strong>特定类型</strong>，最后使用 <strong>通用规则</strong>。</p>
+          <p className="font-bold">规则匹配优先级说明：</p>
+          <p>
+            系统在计算订单抽成时，将按照以下顺序寻找匹配规则（越靠前优先级越高）：<br/>
+            1. <strong>特定城市</strong> + <strong>特定业务类型</strong> + <strong>特定专业技能</strong><br/>
+            2. <strong>特定城市</strong> + <strong>特定业务类型</strong><br/>
+            3. <strong>特定城市</strong><br/>
+            4. <strong>通用规则</strong> (所有城市、所有类型、所有技能)
+          </p>
         </div>
       </div>
 
@@ -106,7 +117,8 @@ export const CommissionRules: React.FC = () => {
           <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <tr>
               <th className="px-6 py-4">适用城市</th>
-              <th className="px-6 py-4">适用订单类型</th>
+              <th className="px-6 py-4">业务类型</th>
+              <th className="px-6 py-4">专业技能领域</th>
               <th className="px-6 py-4">抽成方式</th>
               <th className="px-6 py-4">数值</th>
               <th className="px-6 py-4 text-center">状态</th>
@@ -117,10 +129,18 @@ export const CommissionRules: React.FC = () => {
             {rules.map(rule => (
               <tr key={rule.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4">
-                  {rule.cityCode === 'ALL' ? <span className="text-slate-500">所有城市</span> : mockService.getCityName(rule.cityCode)}
+                  {rule.cityCode === 'ALL' ? <span className="text-slate-400">所有城市</span> : (
+                    <span className="font-medium text-slate-700">{mockService.getCityName(rule.cityCode)}</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
-                  {rule.orderType === 'ALL' ? <span className="text-slate-500">所有类型</span> : rule.orderType}
+                  {rule.orderType === 'ALL' ? <span className="text-slate-400">所有类型</span> : rule.orderType}
+                </td>
+                <td className="px-6 py-4">
+                  {rule.category === 'ALL' || !rule.category ? 
+                    <span className="text-slate-400">全领域技能</span> : 
+                    <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold border border-blue-100">{rule.category}</span>
+                  }
                 </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
@@ -166,7 +186,7 @@ export const CommissionRules: React.FC = () => {
               </tr>
             ))}
             {rules.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-12 text-slate-400">暂无配置规则</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-slate-400">暂无配置规则</td></tr>
             )}
           </tbody>
         </table>
@@ -185,32 +205,49 @@ export const CommissionRules: React.FC = () => {
                </button>
             </div>
             
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">适用城市</label>
-                   <select 
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                      value={formData.cityCode}
-                      onChange={e => setFormData({...formData, cityCode: e.target.value})}
-                   >
-                     <option value="ALL">所有城市</option>
-                     {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                   </select>
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">订单类型</label>
-                   <select 
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                      value={formData.orderType}
-                      onChange={e => setFormData({...formData, orderType: e.target.value})}
-                   >
-                     <option value="ALL">所有类型</option>
-                     {orderTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                   </select>
-                </div>
+            <div className="space-y-5">
+              {/* Scope Configuration */}
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">适用范围条件</h4>
+                  <div>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">适用城市</label>
+                     <select 
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                        value={formData.cityCode}
+                        onChange={e => setFormData({...formData, cityCode: e.target.value})}
+                     >
+                       <option value="ALL">所有城市 (通用)</option>
+                       {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                     </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                       <label className="block text-sm font-medium text-slate-700 mb-1">业务类型</label>
+                       <select 
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                          value={formData.orderType}
+                          onChange={e => setFormData({...formData, orderType: e.target.value})}
+                       >
+                         <option value="ALL">所有类型</option>
+                         {orderTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                       </select>
+                    </div>
+                    <div>
+                       <label className="block text-sm font-medium text-slate-700 mb-1">专业技能领域</label>
+                       <select 
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                          value={formData.category}
+                          onChange={e => setFormData({...formData, category: e.target.value})}
+                       >
+                         <option value="ALL">所有技能领域</option>
+                         {publishTitles.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                       </select>
+                    </div>
+                  </div>
               </div>
 
+              {/* Value Configuration */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                    <label className="block text-sm font-medium text-slate-700 mb-1">抽成模式</label>
@@ -228,25 +265,31 @@ export const CommissionRules: React.FC = () => {
                    <label className="block text-sm font-medium text-slate-700 mb-1">
                       {formData.ruleType === 'PERCENTAGE' ? '百分比数值' : '固定金额'}
                    </label>
-                   <input 
-                      type="number"
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2"
-                      value={formData.ruleValue}
-                      onChange={e => setFormData({...formData, ruleValue: Number(e.target.value)})}
-                   />
+                   <div className="relative">
+                      <input 
+                          type="number"
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 pr-8"
+                          value={formData.ruleValue}
+                          onChange={e => setFormData({...formData, ruleValue: Number(e.target.value)})}
+                          placeholder="0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                          {formData.ruleType === 'PERCENTAGE' ? '%' : '¥'}
+                      </span>
+                   </div>
                 </div>
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button 
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
+                  className="flex-1 py-3 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-medium"
                 >
                   取消
                 </button>
                 <button 
                   onClick={handleSubmit}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-100"
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 font-bold"
                 >
                   {editingId ? '保存修改' : '确认新建'}
                 </button>

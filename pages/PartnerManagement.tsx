@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { mockService } from '../services/mockService';
-import { Partner, UserRole, User } from '../types';
-import { MoreHorizontal, MapPin, Search, Plus, Trash2, Power, X, AlertTriangle, CheckCircle, RotateCcw, Edit, User as UserIcon, Phone } from 'lucide-react';
+import { Partner, UserRole, User, PartnerPermissions } from '../types';
+import { MoreHorizontal, MapPin, Search, Plus, Trash2, Power, X, AlertTriangle, CheckCircle, RotateCcw, Edit, Phone, Tag, Globe, ChevronDown, ChevronRight, CheckSquare, Square, Shield, Lock, Unlock, Ban } from 'lucide-react';
 
 interface PartnerManagementProps {
   user: User;
@@ -12,126 +13,48 @@ export const PartnerManagement: React.FC<PartnerManagementProps> = ({ user }) =>
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   
-  // State for Delete Confirmation
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  // Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null);
 
-  // State for Status Change Confirmation (Enable/Disable)
-  const [statusChangeTarget, setStatusChangeTarget] = useState<{id: string, currentStatus: 'ACTIVE' | 'DISABLED', name: string} | null>(null);
+  // Province selection states for cascading dropdowns
+  const [addProvinceId, setAddProvinceId] = useState('');
+  const [editProvinceId, setEditProvinceId] = useState('');
 
-  // State for Password Reset
-  const [resetTarget, setResetTarget] = useState<{id: string, userId: string, name: string} | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-
-  // State for Edit Partner
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
+  
+  const defaultPermissions: PartnerPermissions = {
+    canPublish: true,
+    canGrab: true,
+    canCrossCity: false,
+    canViewCrossCity: false
+  };
+
   const [editFormData, setEditFormData] = useState({
-    name: '',
-    contactName: '',
-    phone: '',
-    cityCode: ''
+    name: '', contactName: '', phone: '', cityCode: '',
+    businessTypes: [] as string[], crossCityCodes: [] as string[],
+    permissions: defaultPermissions
   });
 
-  // State for Dropdown Menu
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // State for Adding Partner
   const [formData, setFormData] = useState({
-    name: '',
-    contactName: '',
-    phone: '',
-    cityCode: 'SH',
-    username: ''
+    name: '', contactName: '', phone: '', cityCode: '',
+    username: '', businessTypes: [] as string[], crossCityCodes: [] as string[],
+    permissions: defaultPermissions
   });
+
+  // Modal expand states for provinces
+  const [expandedProvinces, setExpandedProvinces] = useState<Record<string, boolean>>({});
 
   const cities = mockService.getCities();
+  const provinces = mockService.getCityGroups();
+  const publishTitles = mockService.getPublishTitles().filter(t => t.isActive);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpenMenuId(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const refreshList = () => {
-    setPartners(mockService.getPartners());
-  };
+  const refreshList = () => setPartners([...mockService.getPartners()]);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone) return;
-    
-    mockService.addPartner({
-      name: formData.name,
-      contactName: formData.contactName,
-      contactPhone: formData.phone,
-      cityCode: formData.cityCode,
-      username: formData.phone // Phone is explicitly used as username
-    });
-    
+    mockService.addPartner({ ...formData, contactPhone: formData.phone });
     setShowAddModal(false);
-    setFormData({ name: '', contactName: '', phone: '', cityCode: 'SH', username: '' });
     refreshList();
-  };
-
-  const initiateDelete = (id: string) => {
-    setDeleteTargetId(id);
-    setOpenMenuId(null);
-  };
-
-  const confirmDelete = () => {
-    if (deleteTargetId) {
-      mockService.deletePartner(deleteTargetId);
-      refreshList();
-      setDeleteTargetId(null);
-    }
-  };
-
-  const initiateStatusChange = (id: string, currentStatus: 'ACTIVE' | 'DISABLED', name: string) => {
-    setStatusChangeTarget({ id, currentStatus, name });
-    setOpenMenuId(null);
-  };
-
-  const confirmStatusChange = () => {
-    if (statusChangeTarget) {
-      const newStatus = statusChangeTarget.currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-      mockService.updatePartnerStatus(statusChangeTarget.id, newStatus);
-      refreshList();
-      setStatusChangeTarget(null);
-    }
-  };
-
-  const initiateResetPassword = (partner: Partner) => {
-    setResetTarget({ id: partner.id, userId: partner.userId, name: partner.name });
-    setNewPassword('');
-    setOpenMenuId(null);
-  };
-
-  const confirmResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (resetTarget && newPassword) {
-      // Hardcoded admin ID for mock
-      mockService.adminResetPassword('u1', resetTarget.userId, newPassword);
-      alert(`已重置合伙人 ${resetTarget.name} 的登录密码`);
-      setResetTarget(null);
-      setNewPassword('');
-    }
-  };
-
-  const initiateEdit = (partner: Partner) => {
-    const user = mockService.getUserById(partner.userId);
-    setEditingPartner(partner);
-    setEditFormData({
-      name: partner.name,
-      contactName: user?.realName || '',
-      phone: partner.contactPhone,
-      cityCode: partner.cityCode
-    });
-    setOpenMenuId(null);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -143,478 +66,489 @@ export const PartnerManagement: React.FC<PartnerManagementProps> = ({ user }) =>
     }
   };
 
-  const togglePermission = (id: string, key: keyof Partner['permissions']) => {
-    const updated = partners.map(p => {
-      if (p.id === id) {
-        // @ts-ignore
-        const newVal = !p.permissions[key];
-        const newPermissions = { ...p.permissions, [key]: newVal };
-        mockService.updatePartnerPermissions(id, newPermissions);
-        return { ...p, permissions: newPermissions };
-      }
-      return p;
-    });
-    setPartners(updated);
+  const handleDeletePartner = () => {
+    if (deleteTarget) {
+      mockService.deletePartner(deleteTarget.id);
+      setDeleteTarget(null);
+      refreshList();
+    }
   };
 
-  // --- Filtering Logic for Permissions ---
-  const isOperations = user?.role === UserRole.OPERATIONS;
-  const managedCities = user?.managedCityCodes || [];
-  const canAdd = user?.role === UserRole.ADMIN || (isOperations && user?.canAddPartner);
+  const handleToggleStatus = (p: Partner) => {
+    mockService.togglePartnerStatus(p.id);
+    refreshList();
+  };
 
-  const filteredPartners = partners.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.cityCode.toLowerCase().includes(searchTerm.toLowerCase());
+  const toggleProvince = (id: string) => {
+    setExpandedProvinces(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleCitySelection = (cityCode: string, isEdit: boolean) => {
+    const targetState = isEdit ? setEditFormData : setFormData;
+    targetState((prev: any) => ({
+      ...prev,
+      crossCityCodes: prev.crossCityCodes.includes(cityCode)
+        ? prev.crossCityCodes.filter((c: string) => c !== cityCode)
+        : [...prev.crossCityCodes, cityCode]
+    }));
+  };
+
+  const toggleProvinceAll = (provinceId: string, isEdit: boolean) => {
+    const provinceCities = cities.filter(c => c.groupId === provinceId);
+    const codes = provinceCities.map(c => c.code);
+    const targetState = isEdit ? setEditFormData : setFormData;
+    const currentCodes = isEdit ? editFormData.crossCityCodes : formData.crossCityCodes;
     
-    // Permission Filter: If Ops, must be in managed cities
-    let matchesScope = true;
-    if (isOperations && managedCities.length > 0) {
-        matchesScope = managedCities.includes(p.cityCode);
+    const allSelected = codes.every(c => currentCodes.includes(c));
+    
+    if (allSelected) {
+      targetState((prev: any) => ({
+        ...prev,
+        crossCityCodes: prev.crossCityCodes.filter((c: string) => !codes.includes(c))
+      }));
+    } else {
+      targetState((prev: any) => ({
+        ...prev,
+        crossCityCodes: Array.from(new Set([...prev.crossCityCodes, ...codes]))
+      }));
     }
+  };
+
+  const updatePermissions = (key: keyof PartnerPermissions, value: boolean, isEdit: boolean) => {
+    const targetState = isEdit ? setEditFormData : setFormData;
+    targetState((prev: any) => ({
+        ...prev,
+        permissions: {
+            ...prev.permissions,
+            [key]: value
+        }
+    }));
+  };
+
+  // Open Add Modal and reset form
+  const handleOpenAddModal = () => {
+    setFormData({
+      name: '', contactName: '', phone: '', cityCode: '',
+      username: '', businessTypes: [], crossCityCodes: [],
+      permissions: { ...defaultPermissions }
+    });
+    setAddProvinceId('');
+    setShowAddModal(true);
+  };
+
+  // Open Edit Modal and populate data
+  const handleOpenEditModal = (p: Partner) => {
+    const user = mockService.getUserById(p.userId);
+    const city = cities.find(c => c.code === p.cityCode);
     
-    return matchesSearch && matchesScope;
-  });
+    setEditingPartner(p);
+    setEditProvinceId(city?.groupId || ''); // Set province based on city
+    setEditFormData({
+      name: p.name, contactName: user?.realName || '', phone: p.contactPhone,
+      cityCode: p.cityCode, businessTypes: p.businessTypes || [], crossCityCodes: p.crossCityCodes || [],
+      permissions: p.permissions || { ...defaultPermissions }
+    });
+  };
+
+  // Helper to render city selector tree
+  const ProvinceCityTree = ({ isEdit }: { isEdit: boolean }) => {
+    const currentCodes = isEdit ? editFormData.crossCityCodes : formData.crossCityCodes;
+    const currentHomeCity = isEdit ? editFormData.cityCode : formData.cityCode;
+
+    return (
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-[300px] overflow-y-auto">
+        {provinces.map(prov => {
+          const provCities = cities.filter(c => c.groupId === prov.id && c.code !== currentHomeCity);
+          if (provCities.length === 0) return null;
+          
+          const isExpanded = expandedProvinces[prov.id];
+          const selectedCount = provCities.filter(c => currentCodes.includes(c.code)).length;
+          const isAllSelected = selectedCount === provCities.length;
+
+          return (
+            <div key={prov.id} className="border-b border-slate-100 last:border-0">
+              <div className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors">
+                <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => toggleProvince(prov.id)}>
+                   {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                   <span className="text-sm font-bold text-slate-700">{prov.name}</span>
+                   {selectedCount > 0 && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full">{selectedCount}</span>}
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => toggleProvinceAll(prov.id, isEdit)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${isAllSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300 text-slate-500 hover:border-blue-400'}`}
+                >
+                  {isAllSelected ? '取消全选' : '全选本省'}
+                </button>
+              </div>
+              {isExpanded && (
+                <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2 bg-white animate-in slide-in-from-top-1 duration-200">
+                   {provCities.map(city => (
+                     <label key={city.code} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${currentCodes.includes(city.code) ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="hidden" 
+                          checked={currentCodes.includes(city.code)} 
+                          onChange={() => toggleCitySelection(city.code, isEdit)} 
+                        />
+                        {currentCodes.includes(city.code) ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                        <span className="text-xs font-medium">{city.name}</span>
+                     </label>
+                   ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const PermissionsSection = ({ isEdit }: { isEdit: boolean }) => {
+      const perms = isEdit ? editFormData.permissions : formData.permissions;
+      return (
+          <div className="grid grid-cols-2 gap-4">
+              <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${perms.canPublish ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}>
+                  <input type="checkbox" className="hidden" checked={perms.canPublish} onChange={(e) => updatePermissions('canPublish', e.target.checked, isEdit)} />
+                  <div className={`p-2 rounded-lg ${perms.canPublish ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Edit className="w-4 h-4" />
+                  </div>
+                  <div>
+                      <span className="block text-sm font-bold text-slate-800">允许发布订单</span>
+                      <span className="block text-xs text-slate-400">合伙人可发布需求</span>
+                  </div>
+                  {perms.canPublish && <CheckCircle className="w-4 h-4 text-blue-600 ml-auto" />}
+              </label>
+
+              <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${perms.canGrab ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100'}`}>
+                  <input type="checkbox" className="hidden" checked={perms.canGrab} onChange={(e) => updatePermissions('canGrab', e.target.checked, isEdit)} />
+                  <div className={`p-2 rounded-lg ${perms.canGrab ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                      <span className="block text-sm font-bold text-slate-800">允许抢单</span>
+                      <span className="block text-xs text-slate-400">合伙人可参与抢单</span>
+                  </div>
+                  {perms.canGrab && <CheckCircle className="w-4 h-4 text-green-600 ml-auto" />}
+              </label>
+
+              <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${perms.canViewCrossCity ? 'bg-purple-50 border-purple-200' : 'bg-white border-slate-100'}`}>
+                  <input type="checkbox" className="hidden" checked={perms.canViewCrossCity} onChange={(e) => updatePermissions('canViewCrossCity', e.target.checked, isEdit)} />
+                  <div className={`p-2 rounded-lg ${perms.canViewCrossCity ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                      <span className="block text-sm font-bold text-slate-800">允许查看跨城</span>
+                      <span className="block text-xs text-slate-400">可见其他授权城市</span>
+                  </div>
+                  {perms.canViewCrossCity && <CheckCircle className="w-4 h-4 text-purple-600 ml-auto" />}
+              </label>
+
+              <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${perms.canCrossCity ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-100'}`}>
+                  <input type="checkbox" className="hidden" checked={perms.canCrossCity} onChange={(e) => updatePermissions('canCrossCity', e.target.checked, isEdit)} />
+                  <div className={`p-2 rounded-lg ${perms.canCrossCity ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <MapPin className="w-4 h-4" />
+                  </div>
+                  <div>
+                      <span className="block text-sm font-bold text-slate-800">允许跨城接单</span>
+                      <span className="block text-xs text-slate-400">可接非本城订单</span>
+                  </div>
+                  {perms.canCrossCity && <CheckCircle className="w-4 h-4 text-orange-600 ml-auto" />}
+              </label>
+          </div>
+      )
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">合伙人管理</h1>
-          <p className="text-slate-500 text-sm">
-            {isOperations ? `管理您负责区域的合伙人 (${managedCities.map(c => mockService.getCityName(c)).join(', ') || '全部'})` : '管理权限、实名认证及账号状态'}
-          </p>
+          <p className="text-slate-500 text-sm">全国性合伙人分级管理与跨城授权中心</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative w-64">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-             <input 
-               type="text" 
-               placeholder="搜索合伙人..." 
-               className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500"
-               value={searchTerm}
-               onChange={e => setSearchTerm(e.target.value)}
-             />
-          </div>
-          {canAdd && (
-            <button 
-                onClick={() => setShowAddModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors"
-            >
-                <Plus className="w-4 h-4" />
-                新增合伙人
-            </button>
-          )}
-        </div>
+        <button onClick={handleOpenAddModal} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors">
+          <Plus className="w-4 h-4" /> 新增合伙人
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
-              <th className="px-6 py-4 font-semibold">公司 / 团队</th>
-              <th className="px-6 py-4 font-semibold">联系人 (登录账号)</th>
-              <th className="px-6 py-4 font-semibold">状态</th>
-              <th className="px-6 py-4 font-semibold">所在地</th>
-              <th className="px-6 py-4 font-semibold">可用余额</th>
-              <th className="px-6 py-4 font-semibold text-center">权限配置</th>
-              <th className="px-6 py-4 font-semibold text-right">操作</th>
+      {/* Main Partner Table UI */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible min-h-[400px]">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-bold">
+            <tr>
+              <th className="px-6 py-4">合伙人团队</th>
+              <th className="px-6 py-4">省份/城市</th>
+              <th className="px-6 py-4">授权区域</th>
+              <th className="px-6 py-4 text-center">状态</th>
+              <th className="px-6 py-4 text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredPartners.map((partner) => {
-              const user = mockService.getUserById(partner.userId);
-              return (
-                <tr key={partner.id} className="hover:bg-slate-50 transition-colors">
+            {partners.map(p => (
+               <tr key={p.id} className="hover:bg-slate-50/50 group">
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 text-sm">
-                        {partner.name.substring(0, 2)}
-                      </div>
-                      <p className="font-medium text-slate-900">{partner.name}</p>
+                    <div className="font-bold text-slate-800 flex items-center gap-2">
+                        {p.name}
+                        {p.status === 'DISABLED' && <Ban className="w-3 h-3 text-red-500" />}
                     </div>
+                    <div className="text-xs text-slate-400">{p.contactPhone}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 text-slate-900 font-medium text-sm">
-                         <UserIcon className="w-3 h-3 text-slate-400" />
-                         {user?.realName || '未知'}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                         <Phone className="w-3 h-3 text-slate-400" />
-                         {partner.contactPhone}
-                      </div>
-                    </div>
+                     <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-600 font-bold border border-slate-200">
+                        {mockService.getCityName(p.cityCode)}
+                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {partner.status === 'ACTIVE' ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                        正常
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                        已停用
-                      </span>
-                    )}
+                     <div className="flex flex-wrap gap-1 max-w-xs">
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[10px] font-bold">本城</span>
+                        {p.crossCityCodes?.slice(0, 3).map(c => (
+                          <span key={c} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[10px] font-bold">{mockService.getCityName(c)}</span>
+                        ))}
+                        {p.crossCityCodes.length > 3 && <span className="text-[10px] text-slate-400">+{p.crossCityCodes.length - 3} 更多...</span>}
+                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      {mockService.getCityName(partner.cityCode)}
-                    </div>
+                  <td className="px-6 py-4 text-center">
+                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${p.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {p.status === 'ACTIVE' ? '正常' : '已停用'}
+                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                     <span className="font-mono text-slate-700">¥{mockService.getWallet(partner.id).balance.toLocaleString()}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center gap-2">
-                      <PermissionToggle 
-                        active={partner.permissions.canPublish} 
-                        onClick={() => togglePermission(partner.id, 'canPublish')}
-                        label="发布权限"
-                      />
-                      <PermissionToggle 
-                        active={partner.permissions.canGrab} 
-                        onClick={() => togglePermission(partner.id, 'canGrab')}
-                        label="接单权限"
-                      />
-                       <PermissionToggle 
-                        active={partner.permissions.canCrossCity} 
-                        onClick={() => togglePermission(partner.id, 'canCrossCity')}
-                        label="跨城权限"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right relative">
-                    <button 
-                      onClick={() => setOpenMenuId(openMenuId === partner.id ? null : partner.id)}
-                      className="text-slate-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50"
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
-
-                    {/* Dropdown Menu */}
-                    {openMenuId === partner.id && (
-                      <div ref={menuRef} className="absolute right-8 top-8 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-10 overflow-hidden">
+                  <td className="px-6 py-4 text-right">
+                     <div className="flex justify-end gap-2">
                         <button 
-                          onClick={() => initiateEdit(partner)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            onClick={() => handleToggleStatus(p)} 
+                            className={`p-2 rounded-lg transition-colors ${p.status === 'ACTIVE' ? 'text-green-600 bg-green-50 hover:bg-red-50 hover:text-red-600' : 'text-slate-400 bg-slate-100 hover:bg-green-50 hover:text-green-600'}`}
+                            title={p.status === 'ACTIVE' ? '点击停用账号' : '点击启用账号'}
                         >
-                           <Edit className="w-3 h-3" />
-                           编辑信息
+                            {p.status === 'ACTIVE' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         </button>
                         <button 
-                          onClick={() => initiateStatusChange(partner.id, partner.status, partner.name)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            onClick={() => handleOpenEditModal(p)} 
+                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                            title="编辑资料与权限"
                         >
-                           <Power className="w-3 h-3" />
-                           {partner.status === 'ACTIVE' ? '停用账号' : '启用账号'}
+                            <Edit className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => initiateResetPassword(partner)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            onClick={() => setDeleteTarget(p)} 
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="删除合伙人"
                         >
-                           <RotateCcw className="w-3 h-3" />
-                           重置密码
+                            <Trash2 className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => initiateDelete(partner.id)}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                           <Trash2 className="w-3 h-3" />
-                           删除
-                        </button>
-                      </div>
-                    )}
+                     </div>
                   </td>
-                </tr>
-              );
-            })}
-            {filteredPartners.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                    {isOperations && managedCities.length > 0 
-                        ? '您管理的城市暂无合伙人' 
-                        : '暂无符合条件的合伙人'}
-                </td></tr>
-            )}
+               </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Add Partner Modal */}
+      {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-lg text-slate-800">新增城市合伙人</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">合伙人/公司名称</label>
-                 <input 
-                   required
-                   className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                   value={formData.name}
-                   onChange={e => setFormData({...formData, name: e.target.value})}
-                   placeholder="例如：上海云创科技"
-                 />
-               </div>
-               
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">所属城市</label>
-                   <select 
-                     className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                     value={formData.cityCode}
-                     onChange={e => setFormData({...formData, cityCode: e.target.value})}
-                   >
-                     {cities
-                        .filter(c => !isOperations || managedCities.length === 0 || managedCities.includes(c.code))
-                        .map(c => (
-                       <option key={c.code} value={c.code}>{c.name}</option>
-                     ))}
-                   </select>
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b bg-slate-50 flex justify-between items-center">
+                 <h3 className="text-xl font-bold text-slate-800">新增城市合伙人</h3>
+                 <button onClick={() => setShowAddModal(false)}><X className="w-6 h-6 text-slate-400" /></button>
+              </div>
+              <form onSubmit={handleAddSubmit} className="flex-1 overflow-y-auto p-6 space-y-8">
+                 {/* Basic Inputs Section */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="col-span-2">
+                       <label className="block text-sm font-bold text-slate-700 mb-2">公司/团队名称</label>
+                       <input required className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-colors" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="例如：四川至诚家居服务中心" />
+                    </div>
+                    <div>
+                       <label className="block text-sm font-bold text-slate-700 mb-2">联系人姓名</label>
+                       <input required className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-colors" value={formData.contactName} onChange={e => setFormData({...formData, contactName: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="block text-sm font-bold text-slate-700 mb-2">登录手机号</label>
+                       <input required className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-colors" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value, username: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="block text-sm font-bold text-slate-700 mb-2">归属省份 / 城市 (本城)</label>
+                       <div className="flex gap-2">
+                           <select 
+                              className="w-1/2 border-2 border-slate-100 rounded-xl px-3 py-3 focus:border-blue-500 outline-none transition-colors text-sm font-medium"
+                              value={addProvinceId}
+                              onChange={e => {
+                                  setAddProvinceId(e.target.value);
+                                  setFormData({...formData, cityCode: ''}); 
+                              }}
+                           >
+                              <option value="">选择省份</option>
+                              {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                           </select>
+                           <select 
+                              required
+                              className="w-1/2 border-2 border-slate-100 rounded-xl px-3 py-3 focus:border-blue-500 outline-none transition-colors text-sm font-medium"
+                              value={formData.cityCode}
+                              onChange={e => setFormData({...formData, cityCode: e.target.value})}
+                              disabled={!addProvinceId}
+                           >
+                              <option value="">{addProvinceId ? '选择城市' : '请先选省份'}</option>
+                              {cities.filter(c => c.groupId === addProvinceId).map(c => (
+                                  <option key={c.code} value={c.code}>{c.name}</option>
+                              ))}
+                           </select>
+                       </div>
+                    </div>
                  </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">联系人姓名</label>
-                    <input 
-                      required
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.contactName}
-                      onChange={e => setFormData({...formData, contactName: e.target.value})}
-                      placeholder="真实姓名"
-                    />
-                 </div>
-               </div>
 
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">手机号 (登录账号)</label>
-                 <input 
-                   required
-                   className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                   value={formData.phone}
-                   onChange={e => setFormData({...formData, phone: e.target.value, username: e.target.value})}
-                   placeholder="13800000000"
-                 />
-                 <div className="bg-blue-50 text-blue-800 text-xs p-2 rounded mt-2">
-                    <p>• 该手机号将作为唯一登录账号</p>
-                    <p>• 系统初始密码统一为 <strong>123</strong></p>
+                 {/* Permissions Section */}
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> 权限配置</label>
+                    <PermissionsSection isEdit={false} />
                  </div>
-               </div>
 
-               <div className="pt-2">
-                 <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                   确认创建
-                 </button>
-               </div>
-            </form>
-          </div>
+                 {/* Skills Section */}
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><Tag className="w-4 h-4 text-blue-500" /> 专业领域授权</label>
+                    <div className="flex flex-wrap gap-2">
+                       {publishTitles.map(t => (
+                         <label key={t.id} className={`px-4 py-2 rounded-xl border-2 cursor-pointer transition-all ${formData.businessTypes.includes(t.name) ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-600'}`}>
+                            <input type="checkbox" className="hidden" checked={formData.businessTypes.includes(t.name)} onChange={() => {
+                              const types = formData.businessTypes.includes(t.name) ? formData.businessTypes.filter(x => x !== t.name) : [...formData.businessTypes, t.name];
+                              setFormData({...formData, businessTypes: types});
+                            }} />
+                            <span className="text-xs font-bold">{t.name}</span>
+                         </label>
+                       ))}
+                    </div>
+                 </div>
+
+                 {/* Cross-City Section */}
+                 <div>
+                    <div className="flex items-center justify-between mb-4">
+                       <label className="text-sm font-bold text-slate-700 flex items-center gap-2"><Globe className="w-4 h-4 text-emerald-500" /> 跨城抢单手动授权 (全国范围)</label>
+                       <span className="text-xs text-slate-400">已选 {formData.crossCityCodes.length} 个城市</span>
+                    </div>
+                    <ProvinceCityTree isEdit={false} />
+                 </div>
+              </form>
+              <div className="p-6 border-t bg-slate-50 flex gap-4">
+                 <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 border border-slate-300 rounded-xl font-bold text-slate-600">取消</button>
+                 <button onClick={handleAddSubmit} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200">完成创建</button>
+              </div>
+           </div>
         </div>
       )}
 
-      {/* Edit Partner Modal */}
+      {/* Edit Modal */}
       {editingPartner && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-lg text-slate-800">编辑合伙人信息</h3>
-              <button onClick={() => setEditingPartner(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">合伙人/公司名称</label>
-                 <input 
-                   required
-                   className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                   value={editFormData.name}
-                   onChange={e => setEditFormData({...editFormData, name: e.target.value})}
-                 />
-               </div>
-               
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">所属城市</label>
-                   <select 
-                     className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                     value={editFormData.cityCode}
-                     onChange={e => setEditFormData({...editFormData, cityCode: e.target.value})}
-                     disabled={isOperations} // Operations shouldn't arbitrarily move partners to cities they don't manage
-                   >
-                     {cities
-                        .filter(c => !isOperations || managedCities.length === 0 || managedCities.includes(c.code))
-                        .map(c => (
-                       <option key={c.code} value={c.code}>{c.name}</option>
-                     ))}
-                   </select>
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b bg-slate-50 flex justify-between items-center">
+                 <h3 className="text-xl font-bold text-slate-800">编辑合伙人：{editingPartner.name}</h3>
+                 <button onClick={() => setEditingPartner(null)}><X className="w-6 h-6 text-slate-400" /></button>
+              </div>
+              <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 space-y-8">
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="col-span-2">
+                       <label className="block text-sm font-bold text-slate-700 mb-2">公司名称</label>
+                       <input required className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 focus:border-blue-500 outline-none" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="block text-sm font-bold text-slate-700 mb-2">联系手机 (只读)</label>
+                       <input disabled className="w-full border-2 border-slate-50 bg-slate-50 text-slate-400 rounded-xl px-4 py-3" value={editFormData.phone} />
+                    </div>
+                    <div>
+                       <label className="block text-sm font-bold text-slate-700 mb-2">归属省份 / 城市 (本城)</label>
+                       <div className="flex gap-2">
+                           <select 
+                              className="w-1/2 border-2 border-slate-100 rounded-xl px-3 py-3 focus:border-blue-500 outline-none transition-colors text-sm font-medium"
+                              value={editProvinceId}
+                              onChange={e => {
+                                  setEditProvinceId(e.target.value);
+                                  setEditFormData({...editFormData, cityCode: ''}); 
+                              }}
+                           >
+                              <option value="">选择省份</option>
+                              {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                           </select>
+                           <select 
+                              required
+                              className="w-1/2 border-2 border-slate-100 rounded-xl px-3 py-3 focus:border-blue-500 outline-none transition-colors text-sm font-medium"
+                              value={editFormData.cityCode}
+                              onChange={e => setEditFormData({...editFormData, cityCode: e.target.value})}
+                              disabled={!editProvinceId}
+                           >
+                              <option value="">{editProvinceId ? '选择城市' : '请先选省份'}</option>
+                              {cities.filter(c => c.groupId === editProvinceId).map(c => (
+                                  <option key={c.code} value={c.code}>{c.name}</option>
+                              ))}
+                           </select>
+                       </div>
+                    </div>
                  </div>
+
+                 {/* Permissions Section */}
                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">联系人姓名</label>
-                    <input 
-                      required
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                      value={editFormData.contactName}
-                      onChange={e => setEditFormData({...editFormData, contactName: e.target.value})}
-                    />
+                    <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> 权限配置</label>
+                    <PermissionsSection isEdit={true} />
                  </div>
-               </div>
 
-               <div>
-                 <label className="block text-sm font-medium text-slate-700 mb-1">手机号 (登录账号)</label>
-                 <input 
-                   required
-                   className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                   value={editFormData.phone}
-                   onChange={e => setEditFormData({...editFormData, phone: e.target.value})}
-                 />
-                 <p className="text-xs text-slate-500 mt-1">
-                   注意：修改手机号将同步更改该用户的登录账号。
-                 </p>
-               </div>
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-4">技能领域</label>
+                    <div className="flex flex-wrap gap-2">
+                       {publishTitles.map(t => (
+                         <label key={t.id} className={`px-4 py-2 rounded-xl border-2 cursor-pointer transition-all ${editFormData.businessTypes.includes(t.name) ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-600'}`}>
+                            <input type="checkbox" className="hidden" checked={editFormData.businessTypes.includes(t.name)} onChange={() => {
+                              const types = editFormData.businessTypes.includes(t.name) ? editFormData.businessTypes.filter(x => x !== t.name) : [...editFormData.businessTypes, t.name];
+                              setEditFormData({...editFormData, businessTypes: types});
+                            }} />
+                            <span className="text-xs font-bold">{t.name}</span>
+                         </label>
+                       ))}
+                    </div>
+                 </div>
 
-               <div className="pt-2">
-                 <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                   保存修改
-                 </button>
-               </div>
-            </form>
-          </div>
+                 <div>
+                    <div className="flex items-center justify-between mb-4">
+                       <label className="text-sm font-bold text-slate-700">全国跨城抢单权限配置</label>
+                       <span className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">已授权 {editFormData.crossCityCodes.length} 城</span>
+                    </div>
+                    <ProvinceCityTree isEdit={true} />
+                 </div>
+              </form>
+              <div className="p-6 border-t bg-slate-50 flex gap-4">
+                 <button type="button" onClick={() => setEditingPartner(null)} className="flex-1 py-3 border border-slate-300 rounded-xl font-bold">取消</button>
+                 <button onClick={handleEditSubmit} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">保存修改</button>
+              </div>
+           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteTargetId && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">确认删除?</h3>
-            <p className="text-slate-500 text-sm mb-6">
-              此操作将永久删除该合伙人账号、关联的钱包及权限配置，且无法恢复。
-            </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setDeleteTargetId(null)}
-                className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-              >
-                取消
-              </button>
-              <button 
-                onClick={confirmDelete}
-                className="flex-1 py-2 bg-red-600 rounded-lg text-white font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-100"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Toggle Confirmation Modal */}
-      {statusChangeTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-center">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-              statusChangeTarget.currentStatus === 'ACTIVE' ? 'bg-orange-100' : 'bg-green-100'
-            }`}>
-              {statusChangeTarget.currentStatus === 'ACTIVE' ? (
-                <Power className="w-6 h-6 text-orange-600" />
-              ) : (
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              )}
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">
-              {statusChangeTarget.currentStatus === 'ACTIVE' ? '确认停用账号?' : '确认启用账号?'}
-            </h3>
-            <p className="text-slate-500 text-sm mb-6">
-              {statusChangeTarget.currentStatus === 'ACTIVE' 
-                ? `您确定要停用 ${statusChangeTarget.name} 吗？停用后该账号将无法登录。` 
-                : `您确定要恢复 ${statusChangeTarget.name} 的登录权限吗？`}
-            </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setStatusChangeTarget(null)}
-                className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-              >
-                取消
-              </button>
-              <button 
-                onClick={confirmStatusChange}
-                className={`flex-1 py-2 rounded-lg text-white font-medium transition-colors shadow-lg ${
-                   statusChangeTarget.currentStatus === 'ACTIVE' 
-                   ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-100' 
-                   : 'bg-green-600 hover:bg-green-700 shadow-green-100'
-                }`}
-              >
-                {statusChangeTarget.currentStatus === 'ACTIVE' ? '确认停用' : '确认启用'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Admin Reset Password Modal */}
-      {resetTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 animate-in fade-in zoom-in-95 duration-200">
-           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">重置合伙人密码</h3>
-              <p className="text-sm text-slate-500 mb-4">
-                正在为合伙人 <strong>{resetTarget.name}</strong> 重置密码。
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <Trash2 className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">确认删除合伙人?</h3>
+              <p className="text-slate-600 text-sm mb-6">
+                 您即将删除 <strong>{deleteTarget.name}</strong>。<br/>
+                 此操作不可恢复，该账号下的所有数据（订单、资金流水）可能丢失引用。
               </p>
-              <form onSubmit={confirmResetPassword} className="space-y-4">
-                 <div>
-                    <label className="block text-sm text-slate-600 mb-1">新密码</label>
-                    <input 
-                      type="text"
-                      required
-                      placeholder="请输入新密码"
-                      className="w-full border rounded-lg px-3 py-2"
-                      value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
-                    />
-                 </div>
-                 <div className="flex gap-3 pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setResetTarget(null)}
-                      className="flex-1 py-2 border rounded-lg text-slate-700 hover:bg-slate-50"
-                    >
-                      取消
-                    </button>
-                    <button 
-                      type="submit"
-                      className="flex-1 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
-                    >
-                      确认重置
-                    </button>
-                 </div>
-              </form>
+              <div className="flex gap-4">
+                 <button 
+                   onClick={() => setDeleteTarget(null)}
+                   className="flex-1 py-3 border border-slate-300 rounded-xl font-bold text-slate-700 hover:bg-slate-50"
+                 >
+                   取消
+                 </button>
+                 <button 
+                   onClick={handleDeletePartner}
+                   className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg"
+                 >
+                   确认删除
+                 </button>
+              </div>
            </div>
         </div>
       )}
     </div>
   );
 };
-
-const PermissionToggle = ({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) => (
-  <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={onClick}>
-    <div
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-        active ? 'bg-blue-600' : 'bg-slate-300'
-      }`}
-    >
-      <span
-        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-          active ? 'translate-x-5' : 'translate-x-1'
-        }`}
-      />
-    </div>
-    <span className="text-[10px] text-slate-500 font-medium">{label}</span>
-  </div>
-);

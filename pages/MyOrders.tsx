@@ -45,13 +45,25 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ user, onPublishClick }) => {
   // Processing state for "Complete Order" button
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
+  // Logic for displaying orders:
+  // - If Partner: show grabbed by them or published by them
+  // - If Dispatcher: show all orders published by them (user.id or partnerId)
+  
   const grabbedOrders = orders.filter(o => o.grabPartnerId === user.partnerId);
-  const publishedOrders = orders.filter(o => o.publishPartnerId === user.partnerId);
+  const publishedOrders = orders.filter(o => o.publishPartnerId === user.partnerId || o.publishPartnerId === user.id);
   
   const displayedOrders = activeTab === 'grabbed' ? grabbedOrders : publishedOrders;
 
   const partner = user.partnerId ? mockService.getPartnerById(user.partnerId) : null;
-  const canPublish = partner?.permissions?.canPublish === true;
+  const isInternal = user.role === UserRole.ADMIN || user.role === UserRole.OPERATIONS || user.role === UserRole.DISPATCHER;
+  const canPublish = isInternal || (partner?.permissions?.canPublish === true);
+
+  // Dispatchers primarily use "Published" tab, default to it if internal
+  React.useEffect(() => {
+     if (isInternal && activeTab === 'grabbed') {
+         setActiveTab('published');
+     }
+  }, [isInternal]);
 
   const refreshOrders = () => {
     setOrders([...mockService.getOrders()]);
@@ -239,7 +251,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ user, onPublishClick }) => {
            );
         }
       } else {
-        // Non-partner roles (Admin/Ops) see real name
+        // Non-partner roles (Admin/Ops/Dispatcher) see real name
          return (
              <div className="flex items-center gap-2 text-slate-900">
                {isPlatform ? <Building className="w-4 h-4 text-blue-500" /> : <Briefcase className="w-4 h-4 text-slate-400" />}
@@ -258,7 +270,9 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ user, onPublishClick }) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-800">我的订单</h1>
+        <h1 className="text-2xl font-bold text-slate-800">
+            {isInternal ? '我的发布' : '我的订单'}
+        </h1>
         {canPublish && (
            <button 
              onClick={onPublishClick}
@@ -271,16 +285,18 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ user, onPublishClick }) => {
       </div>
 
       <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('grabbed')}
-          className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === 'grabbed' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          我抢的单 (买入)
-        </button>
+        {!isInternal && (
+            <button
+            onClick={() => setActiveTab('grabbed')}
+            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+                activeTab === 'grabbed' 
+                ? 'border-blue-600 text-blue-600' 
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+            >
+            我抢的单 (买入)
+            </button>
+        )}
         <button
            onClick={() => setActiveTab('published')}
            className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
@@ -289,7 +305,7 @@ export const MyOrders: React.FC<MyOrdersProps> = ({ user, onPublishClick }) => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          我发的单 (卖出)
+          {isInternal ? '我发布的订单' : '我发的单 (卖出)'}
         </button>
       </div>
 

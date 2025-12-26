@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, SystemConfig } from '../types';
 import { mockService } from '../services/mockService';
 import { 
   LayoutDashboard, 
@@ -15,7 +16,9 @@ import {
   Scale,
   Activity,
   UserCog,
-  Key
+  Key,
+  Send,
+  TrendingUp
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -24,6 +27,7 @@ interface LayoutProps {
   onLogout: () => void;
   currentView: string;
   onChangeView: (view: string) => void;
+  systemConfig: SystemConfig;
 }
 
 const roleNames: Record<UserRole, string> = {
@@ -31,9 +35,10 @@ const roleNames: Record<UserRole, string> = {
   [UserRole.OPERATIONS]: '运营人员',
   [UserRole.FINANCE]: '财务人员',
   [UserRole.PARTNER]: '合伙人',
+  [UserRole.DISPATCHER]: '发单专员',
 };
 
-export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onChangeView }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onChangeView, systemConfig }) => {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPass: '', confirmPass: '' });
@@ -89,6 +94,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
         { id: 'reports', label: '财务报表', icon: FileText },
       ];
     }
+    
+    // 发单员视图
+    if (user.role === UserRole.DISPATCHER) {
+      return [
+        ...common,
+        { id: 'my-orders', label: '我的发布', icon: Send }, // 核心功能：管理自己发的单
+        { id: 'orders', label: '订单总览', icon: ShoppingBag }, // 查看平台订单流转
+        { id: 'order-hall', label: '接单大厅', icon: Users }, // 查看市场情况
+        { id: 'reports', label: '业绩统计', icon: TrendingUp }, // 新增：个人业绩统计
+      ];
+    }
 
     if (user.role === UserRole.PARTNER) {
       return [
@@ -129,14 +145,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, curren
       <aside 
         className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-xl z-20`}
       >
-        <div className="h-16 flex items-center justify-center border-b border-slate-700">
+        <div className="h-16 flex items-center justify-center border-b border-slate-700 overflow-hidden">
           {sidebarOpen ? (
-            <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-blue-400">
-              <ShieldCheck className="w-6 h-6" />
-              <span>PartnerNexus</span>
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-blue-400 px-4 w-full">
+              {systemConfig.logoUrl ? (
+                <img src={systemConfig.logoUrl} alt="Logo" className="w-6 h-6 object-contain rounded bg-white/10" />
+              ) : (
+                <ShieldCheck className="w-6 h-6 shrink-0" />
+              )}
+              <span className="truncate">{systemConfig.systemName}</span>
             </div>
           ) : (
-            <ShieldCheck className="w-8 h-8 text-blue-400" />
+            systemConfig.logoUrl ? (
+               <img src={systemConfig.logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded bg-white/10" />
+            ) : (
+               <ShieldCheck className="w-8 h-8 text-blue-400" />
+            )
           )}
         </div>
 

@@ -614,7 +614,8 @@ export const Finance: React.FC<FinanceProps> = ({ user }) => {
 
     const handleConfigSave = (e: React.FormEvent) => {
       e.preventDefault();
-      mockService.updateFinanceConfig(configForm, user.realName);
+      // Fixed: Removed the unused second argument 'user.realName' to match mockService.updateFinanceConfig signature.
+      mockService.updateFinanceConfig(configForm);
       alert('财务配置已更新');
       setShowConfigModal(false);
     };
@@ -646,7 +647,7 @@ export const Finance: React.FC<FinanceProps> = ({ user }) => {
       );
 
       const periodTopUpTotal = periodTopUps.reduce((sum, t) => sum + t.amount, 0);
-      const periodWithdrawalTotal = periodWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+      const periodWithdrawalTotal = periodWithdrawals.filter(w => w.status === 'APPROVED').reduce((sum, w) => sum + w.amount, 0);
       const periodPlatformRevenue = periodRevenueOrders.reduce((sum, o) => sum + o.platformFee, 0);
       const periodNetFlow = periodTopUpTotal + periodPlatformRevenue - periodWithdrawalTotal; // Simplified cash flow view
       
@@ -957,7 +958,7 @@ export const Finance: React.FC<FinanceProps> = ({ user }) => {
           </div>
         )}
 
-        {/* ... (Income & Expense Records Tab, Reports Tab, Settlement Tab Code - No Changes Needed here, using ellipsis for brevity) ... */}
+        {/* --- Transaction History Filter Tab --- */}
         {activeTab === 'topup' && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row justify-between md:items-center bg-slate-50 gap-4">
